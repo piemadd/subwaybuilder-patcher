@@ -1,0 +1,8 @@
+node_modules/
+appimagetool.AppImage
+test.sh
+patching_working_directory/
+raw_data/
+processed_data/*
+!processed_data/.gitkeep
+Subway_Builder*

@@ -1,0 +1,18 @@
+{
+  "name": "subwaybuilder-patcher",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "all": "node ./scripts/download_data.js && node ./scripts/process_data.js && node ./scripts/patch_game.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@electron/asar": "^4.0.1",
+    "@turf/turf": "^7.2.0",
+    "big-json": "^3.2.0"
+  }
+}
