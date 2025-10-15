@@ -18,7 +18,7 @@ Git, wow. You know the drill. Or maybe you don't. I am assuming you have some ex
 Additionally, the following tools are required to be installed:
 - gzip
 - appimagetool (LINUX ONLY)
-  - Go [https://github.com/AppImage/appimagetool/releases/tag/continuous](here)
+  - Go [here](https://github.com/AppImage/appimagetool/releases/tag/continuous)
   - Download the latest version for your chip type (most likely `appimagetool-x86_64.AppImage`)
   - Rename the file to `appimagetool.AppImage` and copy it here
 
