@@ -1,6 +1,6 @@
 import fs from 'fs';
 import config from '../config.js';
-import { extractAll, createPackage } from '@electron/asar';
+import { extractAll } from '@electron/asar';
 import { execSync } from 'child_process';
 
 if (fs.existsSync('./patching_working_directory')) fs.rmSync('./patching_working_directory', { force: true, recursive: true, });
@@ -68,8 +68,8 @@ existingListOfCities.push(...config.places.map((place) => {
     population: place.population,
     initialViewState: {
       zoom: 13.5,
-      latitude: (place.bbox[0] + place.bbox[2]) / 2,
-      longitude: (place.bbox[1] + place.bbox[3]) / 2,
+      latitude: (place.bbox[1] + place.bbox[3]) / 2,
+      longitude: (place.bbox[0] + place.bbox[2]) / 2,
       bearing: 0,
     }
   }
@@ -97,8 +97,9 @@ console.log('Writing to GameMain.js')
 const gameMainAfterMapConfigMod = stringReplaceAt(gameMainJSContents, startOfMapConfig, endOfMapConfig, newMapConfig);
 fs.writeFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeGameMainJS[0]}`, gameMainAfterMapConfigMod, { 'encoding': 'utf-8' });
 
+// i can do this programmatically but it was seemingly async, which I can't deal with rn
 console.log('Repacking asar contents');
-createPackage(import.meta.dirname + '/../patching_working_directory/extracted-asar', import.meta.dirname + '/../patching_working_directory/squashfs-root/resources/app.asar');
+execSync(`npx @electron/asar pack ${import.meta.dirname}/../patching_working_directory/extracted-asar ${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar`)
 
 console.log('Copying over maps and compressing (if needed)');
 config.places.forEach((place) => {
@@ -146,8 +147,8 @@ if (config.platform == 'linux') {
 };
 
 console.log('Cleaning up');
-fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true });
+//fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true });
 setTimeout(() => {
-  fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true }); // sometimes part of the working directory is left
+  //fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true }); // sometimes part of the working directory is left
   console.log('All done!');
 }, 1000);
