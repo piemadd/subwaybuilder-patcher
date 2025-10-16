@@ -28,6 +28,7 @@ const runQuery = async (query) => {
   const parseStream = createParseStream();
   Readable.fromWeb(res.body).pipe(parseStream);
 
+
   // Listen for parsed objects
   parseStream.on('data', (data) => {
     finalData = data;
@@ -45,6 +46,26 @@ const runQuery = async (query) => {
   });
 
   return finalData;
+};
+
+const getStreetName = (tags, preferLocale = 'en') => {
+  // If the way is explicitly unnamed
+  if (tags.noname === 'yes') return '';
+
+  // 1) Locale-specific names first
+  const localized = tags[`name:${preferLocale}`];
+  if (localized && localized.trim()) return localized.trim();
+
+  // 2) Generic name
+  if (tags.name && tags.name.trim()) return tags.name.trim();
+
+  // 3) Some roads only have a ref; it’s often useful (e.g., A1, E61)
+  if (tags.ref && tags.ref.trim()) {
+    return tags.ref.trim();
+  }
+
+  // 4) No name available
+  return '';
 };
 
 const fetchRoadData = async (bbox) => {
@@ -77,14 +98,14 @@ out geom;`
       return {
         "type": "Feature",
         "properties": {
-          roadClass: roadTypes[element.tags.highway],
-          structure: "normal", // this doesnt change...lol
-          name: element.tags.highway ?? "",
-        },
-        "geometry": {
-          "coordinates": element.geometry.map((coord) => [coord.lon, coord.lat]),
-          "type": "LineString"
-        }
+        roadClass: roadTypes[element.tags.highway],
+        structure: "normal",
+        name: getStreetName(element.tags, (config.locale || 'en')),
+         },
+            "geometry": {
+            "coordinates": element.geometry.map((coord) => [coord.lon, coord.lat]),
+            "type": "LineString"
+       }
       }
     })
   }
@@ -149,35 +170,41 @@ const fetchAllData = async (place) => {
     console.time(`Writing places for ${place.name} (${place.code})`);
     fs.writeFileSync(`./raw_data/${place.code}/places.json`, JSON.stringify(placesData), { encoding: 'utf8' });
     console.timeEnd(`Writing places for ${place.name} (${place.code})`);
-  } catch (e) {
-    console.log(`Falling back to streaming writes for large files in ${place.name} (${place.code})...`);
+  } catch (e) { // falling back to slower but more reliable big-json if files are too big
+    console.time(`Writing roads for ${place.name} (${place.code})`);
+    console.time(`Writing buildings for ${place.name} (${place.code})`);
+    console.time(`Writing places for ${place.name} (${place.code})`);
 
-    const writeWithStream = (data, path) => new Promise((resolve, reject) => {
-      const stringifyStream = createStringifyStream({ body: data });
-      const writeStream = fs.createWriteStream(path, { encoding: 'utf8' });
-      stringifyStream.pipe(writeStream);
-      writeStream.on('finish', resolve);
-      stringifyStream.on('error', reject);
-      writeStream.on('error', reject);
+    const roadsWriteStream = fs.createWriteStream(`./raw_data/${place.code}/roads.geojson`, { encoding: 'utf8' });
+    const buildingsWriteStream = fs.createWriteStream(`./raw_data/${place.code}/buildings.json`, { encoding: 'utf8' });
+    const placesWriteStream = fs.createWriteStream(`./raw_data/${place.code}/places.json`, { encoding: 'utf8' });
+
+    const roadStringifyStream = createStringifyStream({ body: roadData });
+    const buildingsStringifyStream = createStringifyStream({ body: buildingData });
+    const placesStringifyStream = createStringifyStream({ body: placesData });
+
+    roadStringifyStream.on('end', () => {
+      console.timeEnd(`Writing roads for ${place.name} (${place.code})`);
+      roadsWriteStream.close();
+    });
+    buildingsStringifyStream.on('end', () => {
+      console.timeEnd(`Writing buildings for ${place.name} (${place.code})`);
+      buildingsWriteStream.close();
+    });
+    placesStringifyStream.on('end', () => {
+      console.timeEnd(`Writing places for ${place.name} (${place.code})`);
+      placesWriteStream.close();
     });
 
-    await Promise.all([
-      writeWithStream(roadData, `./raw_data/${place.code}/roads.geojson`),
-      writeWithStream(buildingData, `./raw_data/${place.code}/buildings.json`),
-      writeWithStream(placesData, `./raw_data/${place.code}/places.json`)
-    ]);
+    roadStringifyStream.pipe(roadsWriteStream);
+    buildingsStringifyStream.pipe(buildingsWriteStream);
+    placesStringifyStream.pipe(placesWriteStream);
 
-    console.log(`Finished writing files for ${place.name} (${place.code})`);
+    console.log(`Done downloading ${place.name} (${place.code}) - DO NOT EXIT THE PROGRAM AS FILES MAY STILL BE GETTING WRITTEN`);
   }
 };
 
-const main = async () => {
-  if (!fs.existsSync('./raw_data')) fs.mkdirSync('./raw_data');
-  for (const place of config.places) {
-    await fetchAllData(place);
-  }
-  console.log('All places processed.');
-  process.exit(0);
-};
-
-main();
+if (!fs.existsSync('./raw_data')) fs.mkdirSync('./raw_data');
+config.places.forEach((place) => {
+  fetchAllData(place);
+});

@@ -205,6 +205,7 @@ if (config.platform == 'linux') {
 };
 
 console.log('Cleaning up');
+//fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true });
 setTimeout(() => {
   //fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true }); // sometimes part of the working directory is left
   console.log('All done!');
