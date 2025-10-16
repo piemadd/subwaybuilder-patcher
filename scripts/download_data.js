@@ -149,41 +149,35 @@ const fetchAllData = async (place) => {
     console.time(`Writing places for ${place.name} (${place.code})`);
     fs.writeFileSync(`./raw_data/${place.code}/places.json`, JSON.stringify(placesData), { encoding: 'utf8' });
     console.timeEnd(`Writing places for ${place.name} (${place.code})`);
-  } catch (e) { // falling back to slower but more reliable big-json if files are too big
-    console.time(`Writing roads for ${place.name} (${place.code})`);
-    console.time(`Writing buildings for ${place.name} (${place.code})`);
-    console.time(`Writing places for ${place.name} (${place.code})`);
+  } catch (e) {
+    console.log(`Falling back to streaming writes for large files in ${place.name} (${place.code})...`);
 
-    const roadsWriteStream = fs.createWriteStream(`./raw_data/${place.code}/roads.geojson`, { encoding: 'utf8' });
-    const buildingsWriteStream = fs.createWriteStream(`./raw_data/${place.code}/buildings.json`, { encoding: 'utf8' });
-    const placesWriteStream = fs.createWriteStream(`./raw_data/${place.code}/places.json`, { encoding: 'utf8' });
-
-    const roadStringifyStream = createStringifyStream({ body: roadData });
-    const buildingsStringifyStream = createStringifyStream({ body: buildingData });
-    const placesStringifyStream = createStringifyStream({ body: placesData });
-
-    roadStringifyStream.on('end', () => {
-      console.timeEnd(`Writing roads for ${place.name} (${place.code})`);
-      roadsWriteStream.close();
-    });
-    buildingsStringifyStream.on('end', () => {
-      console.timeEnd(`Writing buildings for ${place.name} (${place.code})`);
-      buildingsWriteStream.close();
-    });
-    placesStringifyStream.on('end', () => {
-      console.timeEnd(`Writing places for ${place.name} (${place.code})`);
-      placesWriteStream.close();
+    const writeWithStream = (data, path) => new Promise((resolve, reject) => {
+      const stringifyStream = createStringifyStream({ body: data });
+      const writeStream = fs.createWriteStream(path, { encoding: 'utf8' });
+      stringifyStream.pipe(writeStream);
+      writeStream.on('finish', resolve);
+      stringifyStream.on('error', reject);
+      writeStream.on('error', reject);
     });
 
-    roadStringifyStream.pipe(roadsWriteStream);
-    buildingsStringifyStream.pipe(buildingsWriteStream);
-    placesStringifyStream.pipe(placesWriteStream);
+    await Promise.all([
+      writeWithStream(roadData, `./raw_data/${place.code}/roads.geojson`),
+      writeWithStream(buildingData, `./raw_data/${place.code}/buildings.json`),
+      writeWithStream(placesData, `./raw_data/${place.code}/places.json`)
+    ]);
 
-    console.log(`Done downloading ${place.name} (${place.code}) - DO NOT EXIT THE PROGRAM AS FILES MAY STILL BE GETTING WRITTEN`);
+    console.log(`Finished writing files for ${place.name} (${place.code})`);
   }
 };
 
-if (!fs.existsSync('./raw_data')) fs.mkdirSync('./raw_data');
-config.places.forEach((place) => {
-  fetchAllData(place);
-});
+const main = async () => {
+  if (!fs.existsSync('./raw_data')) fs.mkdirSync('./raw_data');
+  for (const place of config.places) {
+    await fetchAllData(place);
+  }
+  console.log('All places processed.');
+  process.exit(0);
+};
+
+main();

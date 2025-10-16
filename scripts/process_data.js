@@ -1,6 +1,7 @@
 import fs from 'fs';
 import config from '../config.js';
 import * as turf from '@turf/turf';
+import { createParseStream } from 'big-json';
 
 const optimizeBuilding = (unOptimizedBuilding) => {
   return {
@@ -395,8 +396,30 @@ const processBuildings = (place, rawBuildings) => {
 }
 
 const processAllData = async (place) => {
-  const rawBuildings = JSON.parse(fs.readFileSync(`./raw_data/${place.code}/buildings.json`, { encoding: 'utf8' }));
-  const rawPlaces = JSON.parse(fs.readFileSync(`./raw_data/${place.code}/places.json`, { encoding: 'utf8' }));
+  const readJsonFile = (filePath) => {
+    return new Promise((resolve, reject) => {
+      const parseStream = createParseStream();
+      let jsonData;
+
+      parseStream.on('data', (data) => {
+        jsonData = data;
+      });
+
+      parseStream.on('end', () => {
+        resolve(jsonData);
+      });
+
+      parseStream.on('error', (err) => {
+        reject(err);
+      });
+
+      fs.createReadStream(filePath).pipe(parseStream);
+    });
+  };
+
+  console.log('Reading raw data for', place.code);
+  const rawBuildings = await readJsonFile(`./raw_data/${place.code}/buildings.json`);
+  const rawPlaces = await readJsonFile(`./raw_data/${place.code}/places.json`);
 
   console.log('Processing Buildings for', place.code)
   const processedBuildings = processBuildings(place, rawBuildings);
@@ -411,7 +434,10 @@ const processAllData = async (place) => {
 
 if (!fs.existsSync('./processed_data')) fs.mkdirSync('./processed_data');
 config.places.forEach((place) => {
-  if (fs.existsSync(`./processed_data/${place.code}`)) fs.rmSync(`./processed_data/${place.code}`, { recursive: true, force: true });
-  fs.mkdirSync(`./processed_data/${place.code}`)
-  processAllData(place);
+  (async () => {
+    if (fs.existsSync(`./processed_data/${place.code}`)) fs.rmSync(`./processed_data/${place.code}`, { recursive: true, force: true });
+    fs.mkdirSync(`./processed_data/${place.code}`)
+    await processAllData(place);
+    console.log(`Finished processing ${place.code}.`);
+  })();
 });
