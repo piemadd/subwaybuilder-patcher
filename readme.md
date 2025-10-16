@@ -18,7 +18,7 @@ Git, wow. You know the drill. Or maybe you don't. I am assuming you have some ex
 Additionally, the following tools are required to be installed:
 - gzip
 - appimagetool (LINUX ONLY)
-  - Go [https://github.com/AppImage/appimagetool/releases/tag/continuous](here)
+  - Go [here](https://github.com/AppImage/appimagetool/releases/tag/continuous)
   - Download the latest version for your chip type (most likely `appimagetool-x86_64.AppImage`)
   - Rename the file to `appimagetool.AppImage` and copy it here
 
@@ -26,7 +26,7 @@ Additionally, the following tools are required to be installed:
 ## Config
 Well, the program needs to know what cities you want to download and patch in. Gotta configure that. To do so, you can modify `config.js`. Within this file, you need to add `places`. Most of this is self explanatory I want to say. Code (ie the city's main airport code), Name, Description, and Bounding Box. To get a valid bounding box:
 
-1. Go to [bboxfinder.com](http://bboxfinder.com/).
+1. Go to [bboxfinder.com](https://bboxfinder.com/).
 2. Select your city with the tools in the top left.  
   a. For the simplest, just press the rectangle and drag.  
   b. You can have multiple combined shapes and arbitrary polygons. Go fucking wild.
