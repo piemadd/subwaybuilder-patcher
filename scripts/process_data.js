@@ -133,7 +133,10 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
   // sorting buildings between residential and commercial
   rawBuildings.forEach((building) => {
     if (building.tags.building) { // should always be true, but why not
-      const buildingGeometry = turf.polygon([building.geometry.map((point) => [point.lon, point.lat])]);
+      const __coords = building.geometry.map((point) => [point.lon, point.lat]);
+      if (__coords.length < 3) return;
+      if (__coords[0][0] !== __coords[__coords.length - 1][0] || __coords[0][1] !== __coords[__coords.length - 1][1]) __coords.push(__coords[0]);
+      const buildingGeometry = turf.polygon([__coords]);
       let buildingAreaMultiplier = Math.max(Number(building.tags['building:levels']), 1); // assuming a single story if no level data
       if (isNaN(buildingAreaMultiplier)) buildingAreaMultiplier = 1;
       const buildingArea = turf.area(buildingGeometry) * buildingAreaMultiplier * 10.7639; // that magic number converts from square meters to square feet
@@ -260,7 +263,7 @@ const processBuildings = (place, rawBuildings) => {
     let maxBuildingLon = -999;
     let maxBuildingLat = -999;
 
-    const buildingPolygon = turf.polygon([building.geometry.map((coord) => {
+    const __points = building.geometry.map((coord) => {
       // overall bbox
       if (coord.lon < minLon) minLon = coord.lon;
       if (coord.lat < minLat) minLat = coord.lat;
@@ -274,7 +277,10 @@ const processBuildings = (place, rawBuildings) => {
       if (coord.lat > maxBuildingLat) maxBuildingLat = coord.lat;
 
       return [coord.lon, coord.lat];
-    })]);
+    });
+    if (__points.length < 3) return;
+    if (__points[0][0] !== __points[__points.length - 1][0] || __points[0][1] !== __points[__points.length - 1][1]) __points.push(__points[0]);
+    const buildingPolygon = turf.polygon([__points]);
     const buildingCenter = turf.centerOfMass(buildingPolygon);
 
     processedBuildings[i] = {
