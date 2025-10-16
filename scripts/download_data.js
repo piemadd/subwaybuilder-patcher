@@ -49,22 +49,13 @@ const runQuery = async (query) => {
 };
 
 const getStreetName = (tags, preferLocale = 'en') => {
-  // If the way is explicitly unnamed
   if (tags.noname === 'yes') return '';
-
-  // 1) Locale-specific names first
   const localized = tags[`name:${preferLocale}`];
   if (localized && localized.trim()) return localized.trim();
-
-  // 2) Generic name
   if (tags.name && tags.name.trim()) return tags.name.trim();
-
-  // 3) Some roads only have a ref; it’s often useful (e.g., A1, E61)
   if (tags.ref && tags.ref.trim()) {
     return tags.ref.trim();
   }
-
-  // 4) No name available
   return '';
 };
 
