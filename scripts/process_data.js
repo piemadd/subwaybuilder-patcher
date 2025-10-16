@@ -233,15 +233,19 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
   });
 
   // need to populate popIds within finalNeighborhoods
-  neighborhoodConnections = neighborhoodConnections.map((connection, i) => {
-    const id = i.toString();
-    finalNeighborhoods[connection.jobId].popIds.push(id);
-    return {
-      ...connection,
-      id,
-    }
-  });
-
+  neighborhoodConnections = neighborhoodConnections
+    .filter((connection) => {
+      return connection.size > 0;
+    })
+    .map((connection, i) => {
+      const id = i.toString();
+      finalNeighborhoods[connection.jobId].popIds.push(id);
+      return {
+        ...connection,
+        id,
+      }
+    });
+    
   return {
     points: Object.values(finalNeighborhoods),
     pops: neighborhoodConnections,
@@ -399,7 +403,7 @@ const processAllData = async (place) => {
   const rawPlaces = JSON.parse(fs.readFileSync(`./raw_data/${place.code}/places.json`, { encoding: 'utf8' }));
 
   console.log('Processing Buildings for', place.code)
-  const processedBuildings = processBuildings(place, rawBuildings);
+  //const processedBuildings = processBuildings(place, rawBuildings);
   console.log('Processing Connections/Demand for', place.code)
   const processedConnections = processPlaceConnections(place, rawBuildings, rawPlaces);
 
