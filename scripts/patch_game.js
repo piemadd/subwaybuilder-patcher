@@ -87,10 +87,10 @@ const existingMapConfig = gameMainJSContents.substring(startOfMapConfig, endOfMa
 console.log('Modifying map config');
 const newMapConfig = existingMapConfig
   .replaceAll(/\[(tilesUrl|foundationTilesUrl)\]/g, JSON.stringify([
-    'https://v4mapa.piemadd.com/20250127/{z}/{x}/{y}.mvt',
-    'https://v4mapb.piemadd.com/20250127/{z}/{x}/{y}.mvt',
-    'https://v4mapc.piemadd.com/20250127/{z}/{x}/{y}.mvt',
-    'https://v4mapd.piemadd.com/20250127/{z}/{x}/{y}.mvt',
+    'https://v4mapa.piemadd.com/20251013/{z}/{x}/{y}.mvt',
+    'https://v4mapb.piemadd.com/20251013/{z}/{x}/{y}.mvt',
+    'https://v4mapc.piemadd.com/20251013/{z}/{x}/{y}.mvt',
+    'https://v4mapd.piemadd.com/20251013/{z}/{x}/{y}.mvt',
   ]))
   .replaceAll('maxzoom: 16', 'maxzoom: 15');
 console.log('Writing to GameMain.js')
