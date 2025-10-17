@@ -36,6 +36,10 @@ if (config.platform == 'linux') {
 } else if (config.platform == 'windows') {
   console.log('Copying install directory to working directory');
   fs.cpSync(config.subwaybuilderLocation, './patching_working_directory/squashfs-root/', { recursive: true });
+} else if (config.platform == 'macos') {
+  console.log('Copying app contents to working directory');
+  fs.cpSync(config.subwaybuilderLocation + '/Contents', './patching_working_directory/squashfs-root/', { recursive: true });
+  fs.renameSync('./patching_working_directory/squashfs-root/Resources', './patching_working_directory/squashfs-root/resources');
 };
 
 console.log('Extracting asar contents')
@@ -170,6 +174,60 @@ if (config.platform == 'linux') {
 } else if (config.platform == 'windows') {
   console.log('Copying final game directory to root');
   fs.cpSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/`, `${import.meta.dirname}/../Subway_Builder/`, { recursive: true });
+} else if (config.platform == 'macos') {
+  console.log('Patching existing app by copying it and replacing only the modified files...');
+  const originalAppPath = '/Applications/Subway Builder.app';
+  const patchedAppPath = `${import.meta.dirname}/../Subway_Builder_Patched.app`;
+
+  if (fs.existsSync(patchedAppPath)) {
+    console.log('Removing old patched app directory...');
+    fs.rmSync(patchedAppPath, { recursive: true, force: true });
+  }
+  console.log(`Copying 'Subway Builder.app' from /Applications using ditto to not break signature...`);
+  try {
+    execSync(`ditto "${originalAppPath}" "${patchedAppPath}"`);
+  } catch (error) {
+    console.error('ERROR: Failed to copy the application. Please ensure "Subway Builder.app" is in your /Applications folder.');
+    console.error(error);
+    process.exit(1);
+  }
+
+  console.log('Replacing app.asar...');
+  const patchedAsarPath = `${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar`;
+  const targetAsarPath = `${patchedAppPath}/Contents/Resources/app.asar`;
+  fs.cpSync(patchedAsarPath, targetAsarPath);
+
+  console.log('Copying new map data...');
+  config.places.forEach((place) => {
+    const sourceMapDataPath = `${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/data/${place.code}/`;
+    const targetMapDataPath = `${patchedAppPath}/Contents/Resources/data/${place.code}/`;
+    if (!fs.existsSync(`${patchedAppPath}/Contents/Resources/data/`)) {
+      fs.mkdirSync(`${patchedAppPath}/Contents/Resources/data/`);
+    }
+    console.log(`Adding data for ${place.name}`);
+    fs.cpSync(sourceMapDataPath, targetMapDataPath, { recursive: true });
+  });
+
+  console.log('Clearing extended attributes');
+  try {
+    execSync(`xattr -cr "${patchedAppPath}"`);
+  } catch (error) {
+    console.warn('Warning: Failed to clear extended attributes.');
+    console.warn(error.message);
+  }
+
+  console.log('Applying ad-hoc signature to the app');
+  try {
+    execSync(`codesign --force --deep -s - "${patchedAppPath}"`);
+  } catch (error) {
+    console.error('ERROR: Failed to sign the application.');
+    console.error('Please ensure Xcode Command Line Tools are installed (run: xcode-select --install)');
+    console.error(error);
+    process.exit(1);
+  }
+
+  console.log(`Patched Game is ready at: ${patchedAppPath}`);
+  console.log('NOTE: The patched Game is no longer signed by a dev certificate. You may need to right-click > "Open" to run it the first time since you signed it "yourself" :)');
 };
 
 console.log('Cleaning up');

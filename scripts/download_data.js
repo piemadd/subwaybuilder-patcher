@@ -28,6 +28,7 @@ const runQuery = async (query) => {
   const parseStream = createParseStream();
   Readable.fromWeb(res.body).pipe(parseStream);
 
+
   // Listen for parsed objects
   parseStream.on('data', (data) => {
     finalData = data;
@@ -45,6 +46,17 @@ const runQuery = async (query) => {
   });
 
   return finalData;
+};
+
+const getStreetName = (tags, preferLocale = 'en') => {
+  if (tags.noname === 'yes') return '';
+  const localized = tags[`name:${preferLocale}`];
+  if (localized && localized.trim()) return localized.trim();
+  if (tags.name && tags.name.trim()) return tags.name.trim();
+  if (tags.ref && tags.ref.trim()) {
+    return tags.ref.trim();
+  }
+  return '';
 };
 
 const fetchRoadData = async (bbox) => {
@@ -77,14 +89,14 @@ out geom;`
       return {
         "type": "Feature",
         "properties": {
-          roadClass: roadTypes[element.tags.highway],
-          structure: "normal", // this doesnt change...lol
-          name: element.tags.highway ?? "",
-        },
-        "geometry": {
-          "coordinates": element.geometry.map((coord) => [coord.lon, coord.lat]),
-          "type": "LineString"
-        }
+        roadClass: roadTypes[element.tags.highway],
+        structure: "normal",
+        name: getStreetName(element.tags, (config.locale || 'en')),
+         },
+            "geometry": {
+            "coordinates": element.geometry.map((coord) => [coord.lon, coord.lat]),
+            "type": "LineString"
+       }
       }
     })
   }
