@@ -1,7 +1,8 @@
 import fs from 'fs';
 import config from '../config.js';
-import { extractAll } from '@electron/asar';
 import { execSync } from 'child_process';
+
+const ENABLE_DEV_TOOLS = false;
 
 if (fs.existsSync('./patching_working_directory')) fs.rmSync('./patching_working_directory', { force: true, recursive: true, });
 fs.mkdirSync('./patching_working_directory');
@@ -38,17 +39,26 @@ if (config.platform == 'linux') {
 };
 
 console.log('Extracting asar contents')
-extractAll(`${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar`, `${import.meta.dirname}/../patching_working_directory/extracted-asar`);
+execSync(`npx @electron/asar extract ${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar ${import.meta.dirname}/../patching_working_directory/extracted-asar`)
 
+console.log('Locating main.js');
+const shouldBeMainJS = import.meta.dirname + '/../patching_working_directory/extracted-asar/dist/main/main.js';
 console.log('Locating index.js')
 const filesInPublicDirectory = fs.readdirSync(import.meta.dirname + '/../patching_working_directory/extracted-asar/dist/renderer/public');
 const shouldBeIndexJS = filesInPublicDirectory.filter((fileName) => fileName.startsWith('index-') && fileName.endsWith('.js'));
 console.log('Locating GameMain.js')
 const shouldBeGameMainJS = filesInPublicDirectory.filter((fileName) => fileName.startsWith('GameMain-') && fileName.endsWith('.js'));
 
-
-if (shouldBeIndexJS.length == 0) {
+if (shouldBeIndexJS.length == 0 || shouldBeGameMainJS.length == 0) {
   triggerError('file-not-found');
+}
+
+if (ENABLE_DEV_TOOLS) {
+  if (!fs.existsSync(shouldBeMainJS)) triggerError('file-not-found', 'main.js could not be located in the game files.');
+  console.log('Enabling dev tools')
+  const originalMainJS = fs.readFileSync(shouldBeMainJS, {encoding: 'utf8'});
+  const replacedMainJS = originalMainJS.replace('isDev || process["env"]["DEBUG_PROD"]', 'isDev || process["env"]["DEBUG_PROD"] || true');
+  fs.writeFileSync(shouldBeMainJS, replacedMainJS, {encoding: 'utf8'});
 }
 
 console.log('Extracting existing list of cities')
@@ -93,9 +103,25 @@ const newMapConfig = existingMapConfig
     'https://v4mapd.piemadd.com/20251013/{z}/{x}/{y}.mvt',
   ]))
   .replaceAll('maxzoom: 16', 'maxzoom: 15');
-console.log('Writing to GameMain.js')
 const gameMainAfterMapConfigMod = stringReplaceAt(gameMainJSContents, startOfMapConfig, endOfMapConfig, newMapConfig);
-fs.writeFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeGameMainJS[0]}`, gameMainAfterMapConfigMod, { 'encoding': 'utf-8' });
+
+console.log('Modifying map layers')
+// doing parks coloring
+const startOfParksMapConfig = gameMainAfterMapConfigMod.search(/{\n\s*id:\s*"parks-large",/);
+const endOfParksMapConfig = gameMainAfterMapConfigMod.search(/{\n\s*id:\s*"airports/, startOfParksMapConfig) - 1;
+if (startOfParksMapConfig == -1 || endOfParksMapConfig == -1) triggerError('code-not-found', 'The map styling for parks could not be located.');
+let parksMapConfig = gameMainAfterMapConfigMod.substring(startOfParksMapConfig, endOfParksMapConfig);
+const originalFilters = parksMapConfig.match(/\["[<>=]{1,2}",\s+\["get",\s+"area"\],\s+[0-9e]+\]/g);
+originalFilters.forEach((filter) => {
+  if (''.includes('<')) return; // we're only doing the big park, dont @ me (the data for park sizes isnt in my tiles)
+  parksMapConfig = parksMapConfig.replace(filter, `["==", ["get", "kind"], "park"]`);
+});
+parksMapConfig = parksMapConfig.replaceAll(`"source-layer": "parks"`, `"source-layer": "landuse"`);
+const gameMainAfterParksMapConfigMod = stringReplaceAt(gameMainAfterMapConfigMod, startOfParksMapConfig, endOfParksMapConfig, parksMapConfig);
+// end of maps coloring
+
+console.log('Writing to GameMain.js')
+fs.writeFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeGameMainJS[0]}`, gameMainAfterParksMapConfigMod, { 'encoding': 'utf-8' });
 
 // i can do this programmatically but it was seemingly async, which I can't deal with rn
 console.log('Repacking asar contents');
@@ -139,7 +165,7 @@ config.places.forEach((place) => {
 if (config.platform == 'linux') {
   console.log('Creating new AppImage');
   fs.chmodSync(import.meta.dirname + '/../appimagetool.AppImage', '777');
-  fs.renameSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/`, `${import.meta.dirname}/../patching_working_directory/sbp.AppDir/`)
+  fs.renameSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/`, `${import.meta.dirname}/../patching_working_directory/sbp.AppDir/`, { recursive: true, force: true })
   execSync(`${import.meta.dirname}/../appimagetool.AppImage ${import.meta.dirname}/../patching_working_directory/sbp.AppDir/`, { cwd: `${import.meta.dirname}/../` });
 } else if (config.platform == 'windows') {
   console.log('Copying final game directory to root');
@@ -148,7 +174,4 @@ if (config.platform == 'linux') {
 
 console.log('Cleaning up');
 //fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true });
-setTimeout(() => {
-  //fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true }); // sometimes part of the working directory is left
-  console.log('All done!');
-}, 1000);
+console.log('All done!');

@@ -245,7 +245,7 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
         id,
       }
     });
-    
+
   return {
     points: Object.values(finalNeighborhoods),
     pops: neighborhoodConnections,
@@ -403,7 +403,7 @@ const processAllData = async (place) => {
   const rawPlaces = JSON.parse(fs.readFileSync(`./raw_data/${place.code}/places.json`, { encoding: 'utf8' }));
 
   console.log('Processing Buildings for', place.code)
-  //const processedBuildings = processBuildings(place, rawBuildings);
+  const processedBuildings = processBuildings(place, rawBuildings);
   console.log('Processing Connections/Demand for', place.code)
   const processedConnections = processPlaceConnections(place, rawBuildings, rawPlaces);
 
