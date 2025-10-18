@@ -1,8 +1,15 @@
 import fs from 'fs';
 import config from '../config.js';
 import { execSync } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 const ENABLE_DEV_TOOLS = false;
+
+const getProjectPath = (...pathParts) => {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  return path.join(__dirname, '..', ...pathParts);
+};
 
 if (fs.existsSync('./patching_working_directory')) fs.rmSync('./patching_working_directory', { force: true, recursive: true, });
 fs.mkdirSync('./patching_working_directory');
@@ -29,10 +36,10 @@ console.log(`Declared operating system: ${config.platform}`);
 // getting the game files over here
 if (config.platform == 'linux') {
   console.log('Copying AppImage to working directory');
-  fs.cpSync(config.subwaybuilderLocation, import.meta.dirname + '/../patching_working_directory/SB.AppImage');
+  fs.cpSync(config.subwaybuilderLocation, getProjectPath('patching_working_directory', 'SB.AppImage'));
   console.log('Extracting AppImage contents')
-  fs.chmodSync(import.meta.dirname + '/../patching_working_directory/SB.AppImage', '777');
-  execSync(import.meta.dirname + '/../patching_working_directory/SB.AppImage --appimage-extract', { cwd: import.meta.dirname + '/../patching_working_directory/' });
+  fs.chmodSync(getProjectPath('patching_working_directory', 'SB.AppImage'), '777');
+  execSync(`"${getProjectPath('patching_working_directory', 'SB.AppImage')}" --appimage-extract`, { cwd: getProjectPath('patching_working_directory') });
 } else if (config.platform == 'windows') {
   console.log('Copying install directory to working directory');
   fs.cpSync(config.subwaybuilderLocation, './patching_working_directory/squashfs-root/', { recursive: true });
@@ -43,12 +50,12 @@ if (config.platform == 'linux') {
 };
 
 console.log('Extracting asar contents')
-execSync(`npx @electron/asar extract ${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar ${import.meta.dirname}/../patching_working_directory/extracted-asar`)
+execSync(`npx @electron/asar extract "${getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'app.asar')}" "${getProjectPath('patching_working_directory', 'extracted-asar')}"`)
 
 console.log('Locating main.js');
-const shouldBeMainJS = import.meta.dirname + '/../patching_working_directory/extracted-asar/dist/main/main.js';
+const shouldBeMainJS = getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'main', 'main.js');
 console.log('Locating index.js')
-const filesInPublicDirectory = fs.readdirSync(import.meta.dirname + '/../patching_working_directory/extracted-asar/dist/renderer/public');
+const filesInPublicDirectory = fs.readdirSync(getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'public'));
 const shouldBeIndexJS = filesInPublicDirectory.filter((fileName) => fileName.startsWith('index-') && fileName.endsWith('.js'));
 console.log('Locating GameMain.js')
 const shouldBeGameMainJS = filesInPublicDirectory.filter((fileName) => fileName.startsWith('GameMain-') && fileName.endsWith('.js'));
@@ -66,7 +73,7 @@ if (ENABLE_DEV_TOOLS) {
 }
 
 console.log('Extracting existing list of cities')
-const indexJSContents = fs.readFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeIndexJS[0]}`, { encoding: 'utf8' });
+const indexJSContents = fs.readFileSync(getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'public', shouldBeIndexJS[0]), { encoding: 'utf8' });
 const startOfCitiesArea = indexJSContents.indexOf('const cities = [{') + 'const cities = '.length; // will give us the start of the array
 const endOfCitiesArea = indexJSContents.indexOf('}];', startOfCitiesArea) + 2;
 if (startOfCitiesArea == -1 || endOfCitiesArea == -1) triggerError('code-not-found', 'The list of cities could not be located.');
@@ -74,7 +81,7 @@ if (startOfCitiesArea == -1 || endOfCitiesArea == -1) triggerError('code-not-fou
 const existingListOfCities = JSON.parse(indexJSContents.substring(startOfCitiesArea, endOfCitiesArea));
 console.log('Modifying existing list of cities and writing placeholder city maps');
 existingListOfCities.push(...config.places.map((place) => {
-  fs.cpSync(`${import.meta.dirname}/../placeholder_mapimage.svg`, `${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/city-maps/${place.code.toLowerCase()}.svg`);
+  fs.cpSync(getProjectPath('placeholder_mapimage.svg'), getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'city-maps', `${place.code.toLowerCase()}.svg`));
   return {
     name: place.name,
     code: place.code,
@@ -90,10 +97,10 @@ existingListOfCities.push(...config.places.map((place) => {
 }));
 console.log('Writing to index.js')
 const indexAfterCitiesMod = stringReplaceAt(indexJSContents, startOfCitiesArea, endOfCitiesArea, JSON.stringify(existingListOfCities) + ';');
-fs.writeFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeIndexJS[0]}`, indexAfterCitiesMod, { 'encoding': 'utf-8' });
+fs.writeFileSync(getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'public', shouldBeIndexJS[0]), indexAfterCitiesMod, { 'encoding': 'utf-8' });
 
 console.log('Extracting existing map config')
-const gameMainJSContents = fs.readFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeGameMainJS[0]}`, { encoding: 'utf8' });
+const gameMainJSContents = fs.readFileSync(getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'public', shouldBeGameMainJS[0]), { encoding: 'utf8' });
 const startOfMapConfig = gameMainJSContents.indexOf('const sources = {') + 'const sources = '.length; // will give us the start of the config
 const endOfMapConfig = gameMainJSContents.indexOf('const layers', startOfMapConfig) - 1;
 if (startOfMapConfig == -1 || endOfMapConfig == -1) triggerError('code-not-found', 'The original map config could not be located.');
@@ -125,21 +132,21 @@ const gameMainAfterParksMapConfigMod = stringReplaceAt(gameMainAfterMapConfigMod
 // end of maps coloring
 
 console.log('Writing to GameMain.js')
-fs.writeFileSync(`${import.meta.dirname}/../patching_working_directory/extracted-asar/dist/renderer/public/${shouldBeGameMainJS[0]}`, gameMainAfterParksMapConfigMod, { 'encoding': 'utf-8' });
+fs.writeFileSync(getProjectPath('patching_working_directory', 'extracted-asar', 'dist', 'renderer', 'public', shouldBeGameMainJS[0]), gameMainAfterParksMapConfigMod, { 'encoding': 'utf-8' });
 
 // i can do this programmatically but it was seemingly async, which I can't deal with rn
 console.log('Repacking asar contents');
-execSync(`npx @electron/asar pack ${import.meta.dirname}/../patching_working_directory/extracted-asar ${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar`)
+execSync(`npx @electron/asar pack "${getProjectPath('patching_working_directory', 'extracted-asar')}" "${getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'app.asar')}"`)
 
 console.log('Copying over maps and compressing (if needed)');
 config.places.forEach((place) => {
   fs.cpSync(
-    `${import.meta.dirname}/../processed_data/${place.code}/`,
-    `${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/data/${place.code}/`,
+    getProjectPath('processed_data', place.code),
+    getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'data', place.code),
     { recursive: true }
   );
 
-  const listOfPlaceFiles = fs.readdirSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/data/${place.code}/`);
+  const listOfPlaceFiles = fs.readdirSync(getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'data', place.code));
 
   //guh
   let hasBuildings = false;
@@ -160,7 +167,7 @@ config.places.forEach((place) => {
   // actually zipping
   listOfPlaceFiles.forEach((file) => {
     if (!file.endsWith('.gz')) {
-      execSync(`gzip -f ${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/data/${place.code}/${file}`);
+      execSync(`gzip -f "${getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'data', place.code, file)}"`);
     }
   });
 });
@@ -168,16 +175,16 @@ config.places.forEach((place) => {
 // finishing up
 if (config.platform == 'linux') {
   console.log('Creating new AppImage');
-  fs.chmodSync(import.meta.dirname + '/../appimagetool.AppImage', '777');
-  fs.renameSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/`, `${import.meta.dirname}/../patching_working_directory/sbp.AppDir/`, { recursive: true, force: true })
-  execSync(`${import.meta.dirname}/../appimagetool.AppImage ${import.meta.dirname}/../patching_working_directory/sbp.AppDir/`, { cwd: `${import.meta.dirname}/../` });
+  fs.chmodSync(getProjectPath('appimagetool.AppImage'), '777');
+  fs.renameSync(getProjectPath('patching_working_directory', 'squashfs-root'), getProjectPath('patching_working_directory', 'sbp.AppDir'), { recursive: true, force: true })
+  execSync(`"${getProjectPath('appimagetool.AppImage')}" "${getProjectPath('patching_working_directory', 'sbp.AppDir')}"`, { cwd: getProjectPath() });
 } else if (config.platform == 'windows') {
   console.log('Copying final game directory to root');
-  fs.cpSync(`${import.meta.dirname}/../patching_working_directory/squashfs-root/`, `${import.meta.dirname}/../Subway_Builder/`, { recursive: true });
+  fs.cpSync(getProjectPath('patching_working_directory', 'squashfs-root'), getProjectPath('Subway_Builder'), { recursive: true });
 } else if (config.platform == 'macos') {
   console.log('Patching existing app by copying it and replacing only the modified files...');
   const originalAppPath = '/Applications/Subway Builder.app';
-  const patchedAppPath = `${import.meta.dirname}/../Subway_Builder_Patched.app`;
+  const patchedAppPath = getProjectPath('Subway_Builder_Patched.app');
 
   if (fs.existsSync(patchedAppPath)) {
     console.log('Removing old patched app directory...');
@@ -193,16 +200,16 @@ if (config.platform == 'linux') {
   }
 
   console.log('Replacing app.asar...');
-  const patchedAsarPath = `${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/app.asar`;
-  const targetAsarPath = `${patchedAppPath}/Contents/Resources/app.asar`;
+  const patchedAsarPath = getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'app.asar');
+  const targetAsarPath = path.join(patchedAppPath, 'Contents', 'Resources', 'app.asar');
   fs.cpSync(patchedAsarPath, targetAsarPath);
 
   console.log('Copying new map data...');
   config.places.forEach((place) => {
-    const sourceMapDataPath = `${import.meta.dirname}/../patching_working_directory/squashfs-root/resources/data/${place.code}/`;
-    const targetMapDataPath = `${patchedAppPath}/Contents/Resources/data/${place.code}/`;
-    if (!fs.existsSync(`${patchedAppPath}/Contents/Resources/data/`)) {
-      fs.mkdirSync(`${patchedAppPath}/Contents/Resources/data/`);
+    const sourceMapDataPath = getProjectPath('patching_working_directory', 'squashfs-root', 'resources', 'data', place.code);
+    const targetMapDataPath = path.join(patchedAppPath, 'Contents', 'Resources', 'data', place.code);
+    if (!fs.existsSync(path.join(patchedAppPath, 'Contents', 'Resources', 'data'))) {
+      fs.mkdirSync(path.join(patchedAppPath, 'Contents', 'Resources', 'data'));
     }
     console.log(`Adding data for ${place.name}`);
     fs.cpSync(sourceMapDataPath, targetMapDataPath, { recursive: true });
@@ -231,5 +238,4 @@ if (config.platform == 'linux') {
 };
 
 console.log('Cleaning up');
-//fs.rmSync(`${import.meta.dirname}/../patching_working_directory`, { recursive: true, force: true });
 console.log('All done!');
