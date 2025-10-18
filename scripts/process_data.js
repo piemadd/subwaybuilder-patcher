@@ -98,6 +98,17 @@ const squareFeetPerJob = {
   stadium: 150,
 };
 
+// Terminals handled separately.
+const validPlaces = [
+  'quarter',
+  'neighbourhood',
+  'suburb',
+  'hamlet',
+  'village',
+];
+
+let terminalTicker = 0;
+
 const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
   let neighborhoods = {};
   let centersOfNeighborhoods = {};
@@ -105,7 +116,7 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
 
   // finding areas of neighborhoods
   rawPlaces.forEach((place) => {
-    if (place.tags.place && (place.tags.place == 'quarter' || place.tags.place == 'neighbourhood')) {
+    if (place.tags.place && (validPlaces.includes(place.tags.place)) || (place.tags.aeroway && place.tags.aeroway == 'terminal')) {
       neighborhoods[place.id] = place;
       if (place.type == 'node') {
         centersOfNeighborhoods[place.id] = [place.lon, place.lat];
@@ -151,7 +162,11 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
           buildingCenter,
         };
       } else if (squareFeetPerJob[building.tags.building]) { // commercial/jobs
-        const approxJobs = Math.floor(buildingArea / squareFeetPerJob[building.tags.building]);
+        let approxJobs = Math.floor(buildingArea / squareFeetPerJob[building.tags.building]);
+
+        if(building.tags.aeroway && building.tags.aeroway == 'terminal'){
+          approxJobs *= 20;
+        }
 
         calculatedBuildings[building.id] = {
           ...building,
@@ -204,8 +219,17 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
     finalVoronoiMetadata[place.placeID].percentOfTotalPopulation = place.totalPopulation / totalPopulation;
     finalVoronoiMetadata[place.placeID].percentOfTotalJobs = place.totalJobs / totalJobs;
 
+    let id = place.placeID;
+
+    if(neighborhoods[id] && neighborhoods[id].tags && neighborhoods[id].tags.aeroway && neighborhoods[id].tags.aeroway == 'terminal'){
+      id = "AIR_Terminal_" + terminalTicker;
+      terminalTicker++;
+      console.log("New terminal added:", id);
+    }
+
+
     finalNeighborhoods[place.placeID] = {
-      id: place.placeID,
+      id: id,
       location: centersOfNeighborhoods[place.placeID],
       jobs: place.totalJobs,
       residents: place.totalPopulation,
@@ -217,19 +241,30 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
     // trust the process bro
     Object.values(finalVoronoiMetadata).forEach((innerPlace) => {
       //const connectionSizeBasedOnResidencePercent = outerPlace.percentOfTotalPopulation * innerPlace.totalJobs;
-      const connectionSizeBasedOnJobsPercent = innerPlace.percentOfTotalJobs * outerPlace.totalPopulation;
+      let connectionSizeBasedOnJobsPercent = innerPlace.percentOfTotalJobs * outerPlace.totalPopulation;
+      // prevent excessive no. of pops
+      if(connectionSizeBasedOnJobsPercent <= 50){
+        connectionSizeBasedOnJobsPercent = 0;
+      }
       const connectionDistance = turf.length(turf.lineString([
         centersOfNeighborhoods[outerPlace.placeID],
         centersOfNeighborhoods[innerPlace.placeID],
       ]), { units: 'meters' });
       const conncetionSeconds = connectionDistance * 0.12; // very scientific (hey, this is something i got from the subwaybuilder data)
-      neighborhoodConnections.push({
-        residenceId: outerPlace.placeID,
-        jobId: innerPlace.placeID,
-        size: Math.round(connectionSizeBasedOnJobsPercent), // SO MANY VIBES EVERYTHING IS JUST VIBES FUCK IT WE BALL
-        drivingDistance: Math.round(connectionDistance),
-        drivingSeconds: Math.round(conncetionSeconds),
-      })
+
+      // prevents excessively large pops, causing impossible-to-fit-in-metro groups
+      let totalSize = Math.round(connectionSizeBasedOnJobsPercent);
+      let splits = Math.ceil(totalSize / 400)
+
+      for(let i = 0; i < splits; i++){
+        neighborhoodConnections.push({
+          residenceId: outerPlace.placeID,
+          jobId: innerPlace.placeID,
+          size: Math.round(totalSize / splits),
+          drivingDistance: Math.round(connectionDistance),
+          drivingSeconds: Math.round(conncetionSeconds),
+        })
+      }
     });
   });
 
@@ -241,11 +276,18 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
     .map((connection, i) => {
       const id = i.toString();
       finalNeighborhoods[connection.jobId].popIds.push(id);
+      finalNeighborhoods[connection.residenceId].popIds.push(id);
       return {
         ...connection,
         id,
       }
     });
+
+    // handle airport terminals
+  neighborhoodConnections.forEach((connection) =>{
+    connection.residenceId = finalNeighborhoods[connection.residenceId].id;
+    connection.jobId = finalNeighborhoods[connection.jobId].id;
+  });
 
   return {
     points: Object.values(finalNeighborhoods),

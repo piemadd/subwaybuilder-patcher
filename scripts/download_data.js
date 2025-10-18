@@ -121,7 +121,10 @@ const fetchPlacesData = async (bbox) => {
 (
   nwr["place"="neighbourhood"](${bbox.join(',')});
   nwr["place"="quarter"](${bbox.join(',')});
-  nwr["amenity"](${bbox.join(',')});
+  nwr["place"="suburb"](${bbox.join(',')});
+  nwr["place"="hamlet"](${bbox.join(',')});
+  nwr["place"="village"](${bbox.join(',')});
+  nwr["aeroway"="terminal"](${bbox.join(',')});
 );
 out geom;`
 
