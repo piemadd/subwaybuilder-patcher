@@ -98,6 +98,15 @@ const squareFeetPerJob = {
   stadium: 150,
 };
 
+// Terminals handled separately.
+const validPlaces = [
+  'quarter',
+  'neighbourhood',
+  'suburb',
+  'hamlet',
+  'village',
+];
+
 let terminalTicker = 0;
 
 const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
@@ -107,7 +116,7 @@ const processPlaceConnections = (place, rawBuildings, rawPlaces) => {
 
   // finding areas of neighborhoods
   rawPlaces.forEach((place) => {
-    if (place.tags.place && (place.tags.place == 'quarter' || place.tags.place == 'neighbourhood') || (place.tags.aeroway && place.tags.aeroway == 'terminal')) {
+    if (place.tags.place && (validPlaces.includes(place.tags.place)) || (place.tags.aeroway && place.tags.aeroway == 'terminal')) {
       neighborhoods[place.id] = place;
       if (place.type == 'node') {
         centersOfNeighborhoods[place.id] = [place.lon, place.lat];
